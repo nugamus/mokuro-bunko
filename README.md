@@ -2,6 +2,7 @@
 
 A self-hosted manga library server with WebDAV, built-in OCR processing, and multi-user support. Designed as a backend for [Mokuro Reader](https://reader.mokuro.app).
 
+> [!WARNING]
 > **v0.1 -- Early alpha.** Core functionality works but many features are untested or incomplete. Expect rough edges. No binary releases or Docker images are published yet -- run from source for now.
 
 ## What it does
