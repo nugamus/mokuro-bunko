@@ -264,11 +264,27 @@ class TestUserCrud:
         assert user["status"] == "disabled"
 
     def test_delete_user(self, temp_db: Database) -> None:
-        """Test deleting a user."""
+        """Test soft-deleting a user sets status to 'deleted'."""
         temp_db.create_user("testuser", "password123")
         result = temp_db.delete_user("testuser")
         assert result is True
-        assert temp_db.get_user("testuser") is None
+
+        user = temp_db.get_user("testuser")
+        assert user is not None
+        assert user["status"] == "deleted"
+
+    def test_deleted_user_cannot_authenticate(self, temp_db: Database) -> None:
+        """Test that soft-deleted users cannot log in."""
+        temp_db.create_user("testuser", "password123")
+        temp_db.delete_user("testuser")
+        assert temp_db.authenticate_user("testuser", "password123") is None
+
+    def test_delete_already_deleted_user(self, temp_db: Database) -> None:
+        """Test deleting an already-deleted user returns False."""
+        temp_db.create_user("testuser", "password123")
+        temp_db.delete_user("testuser")
+        result = temp_db.delete_user("testuser")
+        assert result is False
 
     def test_delete_nonexistent_user(self, temp_db: Database) -> None:
         """Test deleting nonexistent user returns False."""

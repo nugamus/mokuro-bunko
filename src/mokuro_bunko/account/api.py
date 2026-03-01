@@ -190,6 +190,14 @@ class AccountAPI:
         if not self.db.authenticate_user(username, confirm_password):
             return self._json_response(start_response, 401, {"error": "Password is incorrect"})
 
+        # Log before deletion (row references the user that's about to be removed)
+        self.db.log_audit_event(
+            action="self_delete_account",
+            actor_username=username,
+            target_type="user",
+            target_username=username,
+        )
+
         # Delete user from database
         self.db.delete_user(username)
 

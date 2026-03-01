@@ -295,25 +295,27 @@ function renderUsers() {
             <td>${user.notes ? escapeHtml(truncate(user.notes, 60)) : '-'}</td>
             <td>${formatDate(user.created_at)}</td>
             <td class="actions">
-                <button class="btn btn--secondary btn--sm" onclick="showChangeRole('${escapeHtml(user.username)}', '${escapeHtml(user.role)}')">
-                    Role
-                </button>
-                <button class="btn btn--secondary btn--sm" onclick="showEditNotes('${escapeHtml(user.username)}')">
-                    Notes
-                </button>
-                ${user.status === 'pending' ? `
-                    <button class="btn btn--primary btn--sm" onclick="approveUser('${escapeHtml(user.username)}')">
-                        Approve
+                ${user.status !== 'deleted' ? `
+                    <button class="btn btn--secondary btn--sm" onclick="showChangeRole('${escapeHtml(user.username)}', '${escapeHtml(user.role)}')">
+                        Role
+                    </button>
+                    <button class="btn btn--secondary btn--sm" onclick="showEditNotes('${escapeHtml(user.username)}')">
+                        Notes
+                    </button>
+                    ${user.status === 'pending' ? `
+                        <button class="btn btn--primary btn--sm" onclick="approveUser('${escapeHtml(user.username)}')">
+                            Approve
+                        </button>
+                    ` : ''}
+                    ${user.status === 'active' ? `
+                        <button class="btn btn--secondary btn--sm" onclick="disableUser('${escapeHtml(user.username)}')">
+                            Disable
+                        </button>
+                    ` : ''}
+                    <button class="btn btn--danger btn--sm" onclick="confirmDeleteUser('${escapeHtml(user.username)}')">
+                        Delete
                     </button>
                 ` : ''}
-                ${user.status === 'active' ? `
-                    <button class="btn btn--secondary btn--sm" onclick="disableUser('${escapeHtml(user.username)}')">
-                        Disable
-                    </button>
-                ` : ''}
-                <button class="btn btn--danger btn--sm" onclick="confirmDeleteUser('${escapeHtml(user.username)}')">
-                    Delete
-                </button>
             </td>
         </tr>
     `).join('');
@@ -911,6 +913,7 @@ function getBadgeClass(status) {
         'valid': 'badge--success',
         'pending': 'badge--warning',
         'disabled': 'badge--error',
+        'deleted': 'badge--muted',
         'expired': 'badge--muted',
         'used': 'badge--info',
     };

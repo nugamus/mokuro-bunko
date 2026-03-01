@@ -21,6 +21,7 @@ from mokuro_bunko.middleware.auth import AuthMiddleware
 from mokuro_bunko.middleware.cors import CorsMiddleware
 from mokuro_bunko.middleware.fs_watcher import LibraryWatcher
 from mokuro_bunko.middleware.propfind_cache import PropfindCacheMiddleware
+from mokuro_bunko.middleware.request_log import RequestLogMiddleware
 from mokuro_bunko.registration.api import RegistrationAPI
 from mokuro_bunko.setup.api import SetupWizardAPI
 from mokuro_bunko.static import StaticMiddleware
@@ -129,7 +130,8 @@ def create_app(
     # 9. HomePageAPI (serves welcome page at / for browsers)
     # 10. SetupWizardAPI (intercepts / -> /setup on first run)
     # 11. StaticMiddleware (serves shared CSS/JS)
-    # 12. CorsMiddleware (handles CORS, outermost)
+    # 12. CorsMiddleware (handles CORS)
+    # 13. RequestLogMiddleware (MOKURO_DEBUG=1, outermost)
 
     app: Callable[..., Any] = dav_app
 
@@ -198,6 +200,9 @@ def create_app(
     # Wrap with CORS middleware (outermost to handle OPTIONS before auth)
     if config.cors.enabled:
         app = CorsMiddleware(app, config.cors)
+
+    # Wrap with request logging (outermost; enabled by MOKURO_DEBUG=1)
+    app = RequestLogMiddleware(app)
 
     # Attach propfind cache for startup warming
     app._propfind_cache = propfind_cache  # type: ignore[attr-defined]

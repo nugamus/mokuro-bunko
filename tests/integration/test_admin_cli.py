@@ -123,7 +123,8 @@ class TestDeleteUser:
         assert "deleted" in result.output
 
         user = test_db.get_user("todelete")
-        assert user is None
+        assert user is not None
+        assert user["status"] == "deleted"
 
     def test_delete_user_not_found(
         self, runner: CliRunner, test_config: Path

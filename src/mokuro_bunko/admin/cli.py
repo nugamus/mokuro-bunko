@@ -83,7 +83,7 @@ def delete_user(ctx: click.Context, username: str, yes: bool) -> None:
 @admin_group.command("list-users")
 @click.option(
     "--status",
-    type=click.Choice(["active", "pending", "disabled"]),
+    type=click.Choice(["active", "pending", "disabled", "deleted"]),
     help="Filter by status",
 )
 @click.pass_context

@@ -831,7 +831,7 @@ class AdminAPI:
         """Return server status info."""
         uptime = time.time() - self._start_time
         users = self.db.list_users()
-        user_count = len(users)
+        user_count = sum(1 for u in users if u["status"] != "deleted")
 
         # Disk usage
         storage_path = ""

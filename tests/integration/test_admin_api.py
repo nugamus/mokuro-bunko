@@ -264,7 +264,7 @@ class TestUsersAPI:
         assert response.status_code == 400
 
     def test_delete_user(self, client: WSGITestClient, test_db: Database) -> None:
-        """Test deleting a user."""
+        """Test soft-deleting a user."""
         test_db.create_user("todelete", "pass1234")
 
         response = client.delete("/_admin/api/users/todelete")
@@ -272,7 +272,8 @@ class TestUsersAPI:
         assert response.json()["success"] is True
 
         user = test_db.get_user("todelete")
-        assert user is None
+        assert user is not None
+        assert user["status"] == "deleted"
 
     def test_delete_user_not_found(self, client: WSGITestClient) -> None:
         """Test deleting nonexistent user."""

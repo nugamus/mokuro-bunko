@@ -14,7 +14,7 @@ import bcrypt
 from mokuro_bunko.validation import validate_password, validate_username
 
 
-UserStatus = Literal["active", "pending", "disabled"]
+UserStatus = Literal["active", "pending", "disabled", "deleted"]
 UserRole = Literal["anonymous", "registered", "uploader", "inviter", "editor", "admin"]
 
 LEGACY_ROLE_ALIASES: dict[str, str] = {
@@ -142,8 +142,10 @@ class Database:
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
         """Context manager for database connections."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
         try:
             yield conn
             conn.commit()
@@ -511,7 +513,9 @@ class Database:
             return cursor.rowcount > 0
 
     def delete_user(self, username: str) -> bool:
-        """Delete a user.
+        """Soft-delete a user by setting status to 'deleted'.
+
+        The user row and volume upload records are preserved for audit trail.
 
         Args:
             username: Username.
@@ -520,9 +524,9 @@ class Database:
             True if user was deleted, False if not found.
         """
         with self._connection() as conn:
-            conn.execute("DELETE FROM volume_uploads WHERE uploader_username = ?", (username,))
             cursor = conn.execute(
-                "DELETE FROM users WHERE username = ?",
+                "UPDATE users SET status = 'deleted', updated_at = datetime('now') "
+                "WHERE username = ? AND status != 'deleted'",
                 (username,),
             )
             return cursor.rowcount > 0
@@ -728,6 +732,8 @@ class Database:
 
     # Audit operations
 
+    AUDIT_RETENTION_DAYS = 30
+
     def log_audit_event(
         self,
         action: str,
@@ -737,7 +743,7 @@ class Database:
         target_username: Optional[str] = None,
         details: Optional[dict[str, Any]] = None,
     ) -> int:
-        """Append an audit event."""
+        """Append an audit event and prune entries older than retention period."""
         details_text = None
         if details is not None:
             import json
@@ -752,6 +758,10 @@ class Database:
                 ) VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (actor_username, action, target_type, target_path, target_username, details_text),
+            )
+            conn.execute(
+                "DELETE FROM audit_logs WHERE created_at < datetime('now', ?)",
+                (f"-{self.AUDIT_RETENTION_DAYS} days",),
             )
             return cursor.lastrowid or 0
 

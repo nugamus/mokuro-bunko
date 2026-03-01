@@ -379,7 +379,10 @@ class MokuroFileResource(DAVNonCollection):
 
     def get_content(self) -> BinaryIO:
         """Return file content as file object."""
-        return open(self.file_path, "rb")
+        try:
+            return open(self.file_path, "rb")
+        except OSError as e:
+            raise DAVError(500, f"Cannot read file: {e}") from e
 
     def begin_write(self, content_type: Optional[str] = None) -> BinaryIO:
         """Begin writing to file, return file object."""
@@ -435,7 +438,7 @@ class MokuroFileResource(DAVNonCollection):
             if dest_physical:
                 dest_physical.parent.mkdir(parents=True, exist_ok=True)
                 if is_move:
-                    os.rename(self.file_path, dest_physical)
+                    os.replace(self.file_path, dest_physical)
                 else:
                     import shutil
                     shutil.copy2(self.file_path, dest_physical)
@@ -875,9 +878,11 @@ class _ValidatedCbzWriter:
 
         os.replace(self.temp_path, self.destination)
         # mkstemp creates with 0o600; apply umask-derived permissions instead.
-        umask = os.umask(0)
-        os.umask(umask)
-        os.chmod(self.destination, 0o666 & ~umask)
+        # On Windows, umask/chmod have no effect on NTFS permissions.
+        if os.name != "nt":
+            umask = os.umask(0)
+            os.umask(umask)
+            os.chmod(self.destination, 0o666 & ~umask)
 
     def writable(self) -> bool:
         return True
