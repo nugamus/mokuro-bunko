@@ -270,6 +270,53 @@ def create_ssl_server(
     return server
 
 
+def _start_server_resilient(server: Any) -> None:
+    """Start the cheroot server with resilience to worker thread death.
+
+    Cheroot worker threads can die from unhandled exceptions in socket
+    cleanup code (especially on Windows). When a thread dies, it sets
+    server.interrupt which causes the serve() loop to exit. This function
+    wraps the serve loop to automatically recover by clearing the interrupt
+    flag and continuing.
+
+    See: https://github.com/cherrypy/cheroot/issues/375
+    """
+    import sys
+    import threading
+
+    server.prepare()
+
+    # Start the unservicable-connection handler thread (cheroot's own)
+    threading.Thread(
+        target=server._serve_unservicable,
+        name="UnservicableHandler",
+        daemon=True,
+    ).start()
+
+    while server.ready:
+        try:
+            server._connections.run(server.expiration_interval)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            server.error_log(
+                "Error in HTTPServer.serve",
+                level=40,  # logging.ERROR
+                traceback=True,
+            )
+
+        # If a worker thread died and set the interrupt flag, recover.
+        interrupt = server.interrupt
+        if interrupt is not None:
+            print(
+                f"[WATCHDOG] Worker thread set interrupt: {interrupt!r}. "
+                "Recovering (clearing flag and continuing).",
+                file=sys.stderr,
+                flush=True,
+            )
+            server.interrupt = None
+
+
 def run_server(config: Config, config_path: Optional[Path] = None) -> None:
     """Run the WebDAV server.
 
@@ -348,6 +395,11 @@ def run_server(config: Config, config_path: Optional[Path] = None) -> None:
     # Create server (with SSL if enabled)
     server = create_ssl_server(config, config_path, ocr_runtime=ocr_runtime)
 
+    # Start thread pool watchdog (works around cheroot thread death on Windows)
+    from mokuro_bunko.cheroot_watchdog import ThreadPoolWatchdog
+    watchdog = ThreadPoolWatchdog(server)
+    watchdog.start()
+
     if config.ocr.backend != "skip" and selected_backend != OCRBackend.SKIP:
         ocr_worker = OCRWorker(
             storage_path=config.storage.base_path,
@@ -363,10 +415,11 @@ def run_server(config: Config, config_path: Optional[Path] = None) -> None:
     print("Press Ctrl+C to stop")
 
     try:
-        server.start()
+        _start_server_resilient(server)
     except KeyboardInterrupt:
         print("\nShutting down...")
     finally:
+        watchdog.stop()
         if ocr_worker:
             ocr_worker.stop()
         # Stop filesystem watcher and cancel pending cache refresh timers
