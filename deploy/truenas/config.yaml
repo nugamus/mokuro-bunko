@@ -37,5 +37,5 @@ queue:
   public_access: true
 
 ocr:
-  backend: skip
+  backend: auto
   poll_interval: 30
